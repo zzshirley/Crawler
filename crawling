@@ -1,0 +1,312 @@
+import urllib.request
+import re
+import numpy as np
+import pymysql
+import datetime
+class sale1688:
+    def __init__(self):
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36',
+            'Referer': 'https://xl.16888.com',
+            'Host': 'xl.16888.com'
+        }
+
+    def crawl_car_factory(self,conn):
+        url = "{}".format('https://xl.16888.com/factory.html')
+        headers = self.headers
+        request = urllib.request.Request(url=url, headers=headers)
+        response = urllib.request.urlopen(request)
+        content = response.read().decode('utf-8')
+        page = re.findall(r'''<a class="lineBlock num.*?" href="/factory-.*?.html">(.*?)</a>''', content, re.S)
+        cursor = conn.cursor()
+        for p in page:
+            purl = "{}-{}{}".format('https://xl.16888.com/factory', p, '.html')
+            request = urllib.request.Request(url=purl, headers=headers)
+            response = urllib.request.urlopen(request)
+            html = response.read().decode('utf-8')
+            car_rank = re.findall(r'''<td class="xl-td-t1">(\d+)</td>''', html, re.S)
+            car_code = np.array(
+                re.findall(r'''<td class="xl-td-t2"><a href="/f/(.*?)/" target="_blank">.*?</a></td>''', html, re.S))
+            car_name = np.array(
+                re.findall(r'''<td class="xl-td-t2"><a href="/f/.*?/" target="_blank">(.*?)</a></td>''', html, re.S))
+            car_sale_volume = np.array(re.findall(r'''<td class="xl-td-t3">(\d+)</td>''', html, re.S))
+            car_sale_volume_per = np.array(re.findall(r'''<td class="xl-td-t3">(\d+\.?\d{0,2}%|-)</td>''', html, re.S))
+            for i in range(len(car_name)):
+                rank = car_rank[i]
+                ccode = car_code[i]
+                cname = car_name[i]
+                csales_volume = car_sale_volume[i]
+                csales_volume_per = car_sale_volume_per[i]
+                sql = "insert into car_sales_volume values(0,'{}','{}','{}','{}','{}')".format(ccode, cname, rank,
+                                                                                               csales_volume,
+                                                                                               csales_volume_per)
+                cursor.execute(sql)
+            conn.commit()
+    def each_car_vs(self,carcode,name,conn):
+            carcode = carcode
+            url = "{}{}{}".format('https://xl.16888.com/f/', carcode, '/')
+            headers = self.headers
+            request = urllib.request.Request(url=url, headers=headers)
+            response = urllib.request.urlopen(request)
+            content = response.read().decode('utf-8')
+            page = re.findall(r'''<a class="lineBlock num.*?" href="/f/.*?.html">(.*?)</a>''', content, re.S)
+            cursor = conn.cursor()
+            if page == [] :
+                purl = "{}{}{}".format('https://xl.16888.com/f/', carcode, '/')
+                print(purl)
+                self.crawling(carcode, name, purl,cursor)
+            else:
+                for p in page:
+                    purl = "{}{}-{}{}".format('https://xl.16888.com/f/', carcode, p, '.html')
+                    print(purl)
+                    self.crawling(carcode, name, purl,cursor)
+
+    def crawling(self, carcode, name, url,cursor):
+        try:
+            request = urllib.request.Request(url=url, headers=self.headers)
+            response = urllib.request.urlopen(request)
+            html = response.read().decode('utf-8')
+            year= re.findall(r'''<td class="xl-td-t4">(\d+)-\d+</td>''', html, re.S)
+            month = re.findall(r'''<td class="xl-td-t4">\d+-(\d+)</td>''', html, re.S)
+            rank = re.findall(r'''<td class="xl-td-t4"><a href="/factory-.*?.html" target="_blank">(\d+)</a></td>''', html, re.S)
+            sales_volume = re.findall(r'''<td class="xl-td-t4">(\d+)</td>''', html, re.S)
+            sales_volume_per = re.findall(r'''<td class="xl-td-t5">(\d+\.?\d{0,2}|-)</td>''', html, re.S)
+            for i in range(0, len(year)):
+                carcode = carcode
+                name = name
+                rank0 = rank[i]
+                year0 = year[i]
+                month0 = month[i]
+                sales_volume0 = sales_volume[i]
+                sales_volume_per0 = sales_volume_per[i]
+                str = '{}-{}-{}'.format(year0,month0,1)
+                time = datetime.datetime.strptime(str,'%Y-%m-%d')
+                sql = "insert into each_car_sales_volume values(0,'{}','{}','{}',{},'{}','{}','{}','{}')".format(carcode,
+                                                                                                    name,
+                                                                                                    year0,
+                                                                                                    month0,
+                                                                                                    rank0,
+                                                                                                    sales_volume0,
+                                                                                                    sales_volume_per0,time)
+                cursor.execute(sql)
+
+        except Exception as e:
+            print(e)
+    def crawl_car_brand(self,conn):
+        url = "{}".format('https://xl.16888.com/brand.html')
+        headers = self.headers
+        request = urllib.request.Request(url=url, headers=headers)
+        response = urllib.request.urlopen(request)
+        content = response.read().decode('utf-8')
+        page = re.findall(r'''<a class="lineBlock num.*?" href="/brand-.*?.html">(.*?)</a>''', content, re.S)
+        cursor = conn.cursor()
+        for p in page:
+            purl = "{}-{}{}".format('https://xl.16888.com/brand', p, '.html')
+            print(purl)
+            request = urllib.request.Request(url=purl, headers=self.headers)
+            response = urllib.request.urlopen(request)
+            html = response.read().decode('utf-8')
+            car_rank = re.findall(r'''<td class="xl-td-t1">(\d+)</td>''', html, re.S)
+            car_code = np.array(
+                re.findall(r'''<td class="xl-td-t2"><a href="/b/(.*?)/" target="_blank">.*?</a></td>''', html, re.S))
+            car_name = np.array(
+                re.findall(r'''<td class="xl-td-t2"><a href="/b/.*?/" target="_blank">(.*?)</a></td>''', html, re.S))
+            car_country = np.array(re.findall(r'''<td class="xl-td-t3">([\u4E00-\u9FA5]+)</td>''', html, re.S))
+            car_sale_volume = np.array(re.findall(r'''<td class="xl-td-t3">(\d+)</td>''', html, re.S))
+            car_sale_volume_per = np.array(re.findall(r'''<td class="xl-td-t3">(\d+\.?\d{0,2}%|-)</td>''', html, re.S))
+            for i in range(len(car_name)):
+                rank = car_rank[i]
+                ccode = car_code[i]
+                cname = car_name[i]
+                country =  car_country[i]
+                csales_volume = car_sale_volume[i]
+                if car_sale_volume_per[i] != '-':
+                    csales_volume_per = car_sale_volume_per[i].strip('%')
+                else:
+                    csales_volume_per = 0.00
+                sql = "insert into car_brand values(0,'{}','{}','{}','{}','{}','{}')".format(ccode, cname, rank,country,csales_volume,csales_volume_per)
+                print(sql)
+                cursor.execute(sql)
+
+    def crawl_each_car_brand(self, ccode, cname, conn):
+        ccode = ccode
+        cname = cname
+        url = "{}{}{}".format('https://xl.16888.com/b/', ccode, '/')
+        headers = self.headers
+        request = urllib.request.Request(url=url, headers=headers)
+        response = urllib.request.urlopen(request)
+        content = response.read().decode('utf-8')
+        page = re.findall(r'''<a class="lineBlock num.*?" href="/b/.*?.html">(.*?)</a>''', content, re.S)
+        cursor = conn.cursor()
+        if page == []:
+            purl = "{}{}{}".format('https://xl.16888.com/b/', ccode, '/')
+            self.crawling_each_car_brand(ccode, cname, purl, cursor)
+        else:
+            for p in page:
+                purl = "{}{}-{}{}".format('https://xl.16888.com/b/', ccode, p, '.html')
+                self.crawling_each_car_brand(ccode, cname, purl, cursor)
+
+    def crawling_each_car_brand(self,ccode,cname,purl,cursor):
+        ccode = ccode
+        cname = cname
+        request = urllib.request.Request(url=purl, headers=self.headers)
+        response = urllib.request.urlopen(request)
+        html = response.read().decode('utf-8')
+        year = re.findall(r'''<td class="xl-td-t4">(\d+)-\d+</td>''', html, re.S)
+        month = re.findall(r'''<td class="xl-td-t4">\d+-(\d+)</td>''', html, re.S)
+        rank = re.findall(r'''<td class="xl-td-t4"><a href="/.*?.html" target="_blank">(\d+)</a></td>''', html,
+                          re.S)
+        sales_volume = re.findall(r'''<td class="xl-td-t4">(\d+)</td>''', html, re.S)
+        sales_volume_per = re.findall(r'''<td class="xl-td-t5">(\d+\.?\d{0,2}%|-)</td>''', html, re.S)
+        for i in range(0, len(year)):
+            carcode = ccode
+            name = cname
+            rank0 = rank[i]
+            year0 = year[i]
+            month0 = month[i]
+            sales_volume0 = sales_volume[i]
+            if sales_volume_per[i] != '-':
+                csales_volume_per = sales_volume_per[i].strip('%')
+            else:
+                csales_volume_per = 0.00
+            str = '{}-{}-{}'.format(year0, month0, 1)
+            time = datetime.datetime.strptime(str, '%Y-%m-%d')
+            sql = "insert into each_car_brand values(0,'{}','{}','{}',{},'{}','{}','{}','{}')".format(carcode,
+                                                                                                             name,
+                                                                                                             year0,
+                                                                                                             month0,
+                                                                                                             rank0,
+                                                                                                             sales_volume0,
+                                                                                                             csales_volume_per,
+                                                                                                             time)
+            #print(sql)
+            cursor.execute(sql)
+    def crawl_car_style(self,conn):
+        url = "{}".format('https://xl.16888.com/style.html')
+        headers = self.headers
+        request = urllib.request.Request(url=url, headers=headers)
+        response = urllib.request.urlopen(request)
+        content = response.read().decode('utf-8')
+        page = re.findall(r'''<a class="lineBlock num.*?" href="/style-.*?.html">(.*?)</a>''', content, re.S)
+        cursor = conn.cursor()
+        page = int(page[len(page)-1])
+        for i in range(1,page+1):
+            purl = "{}-{}{}".format('https://xl.16888.com/style', i, '.html')
+            print(purl)
+            request = urllib.request.Request(url=purl, headers=self.headers)
+            response = urllib.request.urlopen(request)
+            html = response.read().decode('utf-8')
+            car_rank = re.findall(r'''<td class="xl-td-t1">(\d+)</td>''', html, re.S)
+            car_code = np.array(
+                re.findall(r'''<td class="xl-td-t2"><a href="/s/(.*?)/" target="_blank">.*?</a></td>''', html, re.S))
+            car_name = np.array(
+                re.findall(r'''<td class="xl-td-t2"><a href="/s/.*?/" target="_blank">(.*?)</a></td>''', html, re.S))
+            factory_name = np.array(re.findall(r'''<td class="xl-td-t2"><a href="/f/.*?/" target="_blank">(.*?)</a></td>''', html, re.S))
+           # print(factory_name)
+            car_sale_volume = np.array(re.findall(r'''<td class="xl-td-t3">(\d+)</td>''', html, re.S))
+            car_price_low = np.array(re.findall(r'''<td class="xl-td-t5"><a target="_blank" href="http://price.16888.com/.*?/">(\d+\.?\d{0,2}).*?\d+\.?\d{0,2}</a></td>''', html, re.S))
+            car_price_high = np.array(
+                re.findall(r'''<td class="xl-td-t5"><a target="_blank" href="http://price.16888.com/.*?/">\d+\.?\d{0,2}.*?(\d+\.?\d{0,2})</a></td>''', html, re.S))
+            for i in range(len(car_rank)):
+                rank = car_rank[i]
+                code = car_code[i]
+                cname = car_name[i]
+                fname =  factory_name[i]
+                csales_volume = car_sale_volume[i]
+                ccar_price_low = car_price_low[i]
+                ccar_price_high = car_price_high[i]
+                sql = "insert into car_style values(0,'{}','{}','{}','{}','{}','{}','{}')".format(rank,code,cname,fname,csales_volume,ccar_price_low,ccar_price_high)
+                print(sql)
+                cursor.execute(sql)
+    def get_page(self,url):
+        url =url
+        headers = self.headers
+        request = urllib.request.Request(url=url, headers=headers)
+        response = urllib.request.urlopen(request)
+        content = response.read().decode('utf-8')
+        page = re.findall(r'''<a class="lineBlock num.*?" href="/b/.*?.html">(.*?)</a>''', content, re.S)
+        return page
+
+    def crawl_each_car_style(self,type, ccode, cname, cursor):
+        url = "{}{}/{}/".format('https://xl.16888.com/',type,ccode)
+        page = self.get_page(url)
+        code = ccode
+        name = cname
+        if page == []:
+            self.crawling_each_car_style(url,code,name,cursor)
+        else:
+            page = int(page[len(page) - 1])
+            for i in page+1:
+                purl = "{}{}-{}{}".format(url,code, i, '.html')
+                self.crawling_each_car_style( purl,code, name, cursor)
+    def crawling_each_car_style(self,purl,ccode,cname,cursor):
+        ccode = ccode
+        cname = cname
+        request = urllib.request.Request(url=purl, headers=self.headers)
+        response = urllib.request.urlopen(request)
+        html = response.read().decode('utf-8')
+        year = re.findall(r'''<td class="xl-td-t4">(\d+)-\d+</td>''', html, re.S)
+        month = re.findall(r'''<td class="xl-td-t4">\d+-(\d+)</td>''', html, re.S)
+        rank = re.findall(r'''<td class="xl-td-t5"><a href="/style-.*?.html" target="_blank">(\d+)</a></td>''', html,
+                          re.S)
+        sales_volume = re.findall(r'''<td class="xl-td-t4">(\d+)</td>''', html, re.S)
+        sales_volume_per = re.findall(r'''<td class="xl-td-t4">(\d+\.?\d{0,2}%|-)</td>''', html, re.S)
+        rank_in_factory = re.findall(r'''<td class="xl-td-t5"><a href="/f/.*?.html" target="_blank">(\d+)</a></td>''', html, re.S)
+        rank_in_style = re.findall(r'''<td class="xl-td-t5"><a href="/level-.*?.html" target="_blank">(\d+)</a></td>''',html,re.S)
+        print(len(rank),len(sales_volume_per))
+        for i in range(0, len(rank_in_factory)):
+            carcode = ccode
+            name = cname
+            rank0 = rank[i]
+            year0 = year[i]
+            month0 = month[i]
+            sales_volume0 = sales_volume[i]
+            if sales_volume_per[i] != '-':
+                csales_volume_per = sales_volume_per[i].strip('%')
+            else:
+                csales_volume_per = 0.00
+            str = '{}-{}-{}'.format(year0, month0, 1)
+            time = datetime.datetime.strptime(str, '%Y-%m-%d')
+            rank_in_factory0 = rank_in_factory[i]
+
+            if i >= len(rank_in_style):
+                rank_in_style0 = 0
+            else:
+                rank_in_style0 = rank_in_style[i]
+            sql = "insert into each_car_style values(0,'{}','{}','{}',{},'{}','{}','{}','{}','{}','{}')".format(carcode,
+                                                                                                             name,
+                                                                                                             year0,
+                                                                                                             month0,
+                                                                                                             rank0,
+                                                                                                             sales_volume0,
+                                                                                                             csales_volume_per,
+                                                                                                             rank_in_factory0,
+                                                                                                             rank_in_style0,
+                                                                                                             time)
+            print(sql)
+            #cursor.execute(sql)
+
+
+if __name__ == "__main__":
+
+    conn = pymysql.connect(host="", port=, user="", password="", database='')
+    test = sale1688()
+    #test.crawl_car_brand(conn)
+    #test.getpage(conn)
+    cursor = conn.cursor()
+    sql = "select ccode,cname from car_style"
+    cursor.execute(sql)
+    result  = cursor.fetchall()
+    for i in range(len(result)):
+        code= result[i][0]
+        name = result[i][1]
+        print("开始爬取数据---",name)
+        #test.crawl_each_car_brand(code,name,conn)
+        test.crawl_each_car_style('s', code, name, cursor)
+
+    #test.crawl_car_style(conn)
+
+    conn.commit()
+    print("数据爬取完毕---")
+    conn.close()
+
